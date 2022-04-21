@@ -1,35 +1,43 @@
 clearvars
-close all
-setpath()
+%close all
+setpath_FE()
 
 
 %% INPUT DATA
 
 % Mesh
 filemesh = {
-    'Farfield_expansions/data/centered_R4/meshes/mesh_P2_10ppw.dcm'
-    'Farfield_expansions/data/centered_R4/meshes/mesh_P2_20ppw.dcm'
-    'Farfield_expansions/data/centered_R4/meshes/mesh_P2_40ppw.dcm'
-    'Farfield_expansions/data/centered_R4/meshes/mesh_P2_80ppw.dcm' 
+    %'Farfield_expansions/data/centered_R2/meshes/mesh7_P4_10ppw.dcm'
+    'mesh7_PML_pid2_P4_10ppw.dcm'
+    'mesh7_PML_pid2_P4_20ppw.dcm'
+    'mesh7_PML_pid2_P4_40ppw.dcm'
+    'mesh7_PML_pid2_P4_80ppw.dcm'
     };
 
 % Solution file
 solfile = {
-    'Farfield_expansions/data/centered_R4/sol_KDFE/KDFE_neum_R4_2pi_P2_10ppw.mat'
-    'Farfield_expansions/data/centered_R4/sol_KDFE/KDFE_neum_R4_2pi_P2_20ppw.mat'
-    'Farfield_expansions/data/centered_R4/sol_KDFE/KDFE_neum_R4_2pi_P2_40ppw.mat'
-    'Farfield_expansions/data/centered_R4/sol_KDFE/KDFE_neum_R4_2pi_P2_80ppw.mat'
+    %'Farfield_expansions/data/centered_R4/sol_KDFE/KDFE_neum_R4_2pi_P2_10ppw.mat'
+    'PML_neum_R2_pid2_P4_10ppw.mat'
+    'PML_neum_R2_pid2_P4_20ppw.mat'
+    'PML_neum_R2_pid2_P4_40ppw.mat'
+    'PML_neum_R2_pid2_P4_80ppw.mat'
     };
 
 % Geometry
 rad_int = 1;
-rad_ext = 4;
+rad_ext = 2;
 x_ext_offset = 0;
 x_int_offset = 0;
 
 % Problem
 nwaves = -1;
-wavenumber = 2*pi;
+wavenumber = pi/2;
+
+% Use elem size or number of dofs in convergence plot
+useElemSize = false;
+
+% Line specs
+linespecs = 'r--o';
 
 % Points per wavelength, only applies to compute the element size
 % (otherwise use convergence wrt number of dofs)
@@ -68,8 +76,11 @@ for i = 1:npoints
     dof_ext = length(nodes_rad_ext);
     
     % Vector of element sizes
-    %hvec(i) = size_domain * deg / (nwaves * ppw(i));
-    hvec(i) = size(mesh.X, 1);
+    if useElemSize
+        hvec(i) = size_domain * deg / (nwaves * ppw(i));
+    else
+        hvec(i) = size(mesh.X, 1);
+    end
 
     % Rotate exterior boundary elements to have the boundary edge at face 1
     mapFace2 = load(['rotTriangle_' num2str(mesh.elemInfo.nOfNodes) 'nodes_face2']);
@@ -93,6 +104,9 @@ for i = 1:npoints
     
     % Solution file
     load(solfile{i})
+    if ~useElemSize && exist('f_all', 'var')
+        hvec(i) = hvec(i) + numel(f_all{1});
+    end
     
     % Analytical solution
     [t_ext_0, r_ext_0] = cart2pol(mesh.X(nodes_rad_ext,1) + x_ext_offset, mesh.X(nodes_rad_ext,2));
@@ -123,15 +137,15 @@ for i = 1:npoints
     uk(nodes_rad_ext) = u_all(nodes_rad_ext, end);
     uk(nodes_rad_int) = u_all(nodes_rad_int, end);
     vec = uk - u0;
-    err(i) = (vec' * Mext * vec) / (u0' * Mext * u0);
-    %err(i) = (vec' * Mint * vec) / (u0' * Mint * u0);
+    %err(i) = (vec' * Mext * vec) / (u0' * Mext * u0);
+    err(i) = (vec' * Mint * vec) / (u0' * Mint * u0);
 end
 err = sqrt(real(err));
 
 %% PLOT
 
 hold on
-figid = plot(hvec, err, '-o'); ax = gca(); ax.XScale = 'log'; ax.YScale = 'log';
+figid = plot(hvec, err, linespecs); ax = gca(); ax.XScale = 'log'; ax.YScale = 'log';
 for i = 1:npoints-1
     m = log(err(i+1)/err(i)) / log(hvec(i+1)/hvec(i));
     xm = hvec(i);

@@ -1,4 +1,4 @@
-function [Ktot,ftot] = applyEssentialBC(K,f,alpha,nodes)
+function [Ktot,ftot,columns] = applyEssentialBC(K, f, alpha, nodes, K_columns)
 
 % Input:
 %  K: global matrix of the linear system without dirichlet BC
@@ -15,14 +15,44 @@ function [Ktot,ftot] = applyEssentialBC(K,f,alpha,nodes)
 nOfPrescribedNodes = length(nodes);
 Ktot = K;
 ftot = f;
-for inode = 1:nOfPrescribedNodes
-    index = nodes(inode);
-    value = alpha(inode);
-    column = Ktot(:,index);
-    column(index) = 0;
-    Ktot(index,:) = 0;
-    Ktot(:,index) = 0;
-    Ktot(index,index) = 1;
-    ftot(index) = value;
-    ftot = ftot - value*column;
+
+if nargin == 5
+    columns = K_columns;
+    for inode = 1:nOfPrescribedNodes
+        index = nodes(inode);
+        value = alpha(inode);
+        ftot(index) = value;
+        ftot = ftot - value * K_columns(:, inode);
+    end
+else
+    if nargout == 2
+        columns = [];
+        for inode = 1:nOfPrescribedNodes
+            index = nodes(inode);
+            value = alpha(inode);
+            column = Ktot(:,index);
+            column(index) = 0;
+            Ktot(index,:) = 0;
+            Ktot(:,index) = 0;
+            Ktot(index,index) = 1;
+            ftot(index) = value;
+            ftot = ftot - value*column; 
+        end
+    else
+        columns = zeros(size(K, 1), nOfPrescribedNodes);
+        for inode = 1:nOfPrescribedNodes
+            index = nodes(inode);
+            value = alpha(inode);
+            column = Ktot(:,index);
+            column(index) = 0;
+            Ktot(index,:) = 0;
+            Ktot(:,index) = 0;
+            Ktot(index,index) = 1;
+            ftot(index) = value;
+            ftot = ftot - value*column;
+            columns(:, inode) = column;
+        end
+    end
 end
+
+

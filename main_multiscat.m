@@ -7,37 +7,51 @@ setpath_FE()
 
 % Obstacle mesh files
 data.mesh.files = {
-    'Farfield_expansions/data/centered_R2/meshes/mesh7_P4_10ppw.dcm'
-    'Farfield_expansions/data/centered_R2/meshes/mesh7_P4_10ppw.dcm'
-    %'Farfield_expansions/data/centered_R2/meshes/mesh7_P4_10ppw.dcm'
-    %'Farfield_expansions/data/centered_R2/meshes/mesh7_P4_10ppw.dcm'
+    'Farfield_expansions/data/centered_R2/meshes/R2_2pi_P2_40ppw.dcm'
+    'Farfield_expansions/data/centered_R2/meshes/R2_2pi_P2_40ppw.dcm'
+    'Farfield_expansions/data/centered_R2/meshes/R2_2pi_P2_40ppw.dcm'
+    %'Farfield_expansions/data/centered_R2/meshes/R2_2pi_P2_40ppw.dcm'
+    %'Farfield_expansions/data/centered_R2/meshes/R2_2pi_P2_40ppw.dcm'
+    %'Farfield_expansions/data/centered_R2/meshes/R2_2pi_P2_40ppw.dcm'
     };
 nobj = length(data.mesh.files);
 
-% External radius of each domain
-rad = 2 * ones(nobj, 1);
-
 % Global coordinate center of each domain
-dx = 2;
+dx = 0.5;
+rad = 2 * ones(nobj, 1);
 data.mesh.center = zeros(nobj, 2);
 for i = 2:nobj
     data.mesh.center(i,1) = data.mesh.center(i-1,1) + rad(i-1) + dx + rad(i);
 end
+% data.mesh.center = [-2.5 1; 2.5 1; -8 -4; -4 -5; 0 -6; 4 -5; 8 -4];
+
+% Setup
+data.setup.doPlots = false;
+data.setup.save = false;
+data.setup.deg = zeros(nobj, 1);
+data.setup.ppw = zeros(nobj, 1);
 
 % Problem setup
 data.problem.wavenumber = 2 * pi;
-data.problem.max_iter = 50;
-data.problem.inc_angle = 0;
-data.problem.max_error = 1e-10;
+data.problem.max_iter = 30;
+data.problem.inc_angle = 270 * pi/180;
+data.problem.max_error = 1e-12;
 
 % Farfield expansions setup
 data.farfield.nterms = 15;
 
 % Compute analytical solution for circle obstacles
 analytical.compute = true;
-analytical.M = 100;
+analytical.M = 150;
 analytical.Nfar = 25;
 analytical.acoustic_hard = 0;
+
+% Read ppw from file name
+for i = 1:nobj
+    ppw_idx0 = strfind(data.mesh.files{i}, 'ppw');
+    ppw_idx1 = strfind(data.mesh.files{i}, '_');
+    data.setup.ppw (i) = str2double(data.mesh.files{i}(ppw_idx1(end)+1:ppw_idx0-1));
+end
 
 
 %% MESHES AND SYSTEM MATRICES
@@ -51,6 +65,7 @@ Mabc = cell(nobj, 1);
 Kabc = cell(nobj, 1);
 for i = 1:nobj
     mesh{i} = read_mesh(data.mesh.files{i});
+    data.setup.deg(i) = mesh{i}.refelem.degree;
     [K{i}, M{i}, H{i}, B{i}, Mabc{i}, Kabc{i}] = compute_system(mesh{i});
 end
 system = struct('K', K, 'M', M, 'H', H, 'B', B, 'Mabc', Mabc, 'Kabc', Kabc);
@@ -74,6 +89,9 @@ niter = 0;
 convergence = false;
 err = zeros(nobj, 1);
 indicator = zeros(data.problem.max_iter, 1);
+ddata = cell(nobj, 1);
+ddata(:) = {struct()};
+dflag = false(nobj, 1);
 
 % Iteration loop
 while ~convergence && (niter < data.problem.max_iter)
@@ -92,7 +110,11 @@ while ~convergence && (niter < data.problem.max_iter)
         end
         
         % Solve problem with KDFE boundary conditions
-        [solution(i).u, solution(i).f] = solve_KDFEL(mesh{i}, system(i), uinc, data);
+        [solution(i).u, solution(i).f, ddata{i}] = solve_KDFEL(mesh{i}, system(i), uinc, data, dflag(i), ...
+                                                               ddata{i});
+        
+        % Use matrix decomposition to speed up after the first iteration
+        dflag(i) = true;
         
         % Error on the obstacle wrt the previous solution
         u = solution(i).u(nodes_int);
@@ -159,14 +181,36 @@ if analytical.compute
                         data.mesh.center, analytical.M, analytical.Nfar, Bx, By);
 
     % Comparison plots
+    err = zeros(nobj, 1);
     for i = 1:nobj
         figure, hold on
         nodes_ext = unique(mesh{i}.Tb_ext);
         u = solution(i).u(nodes_ext(opos{i}));
-        plot(theta{i}, abs(u), 'r-')
-        plot(theta{i}, abs(u_exact{i}), 'k--')
+        plot(theta{i}, abs(u), 'r-', 'linewidth', 2.5)
+        plot(theta{i}, abs(u_exact{i}), 'k--', 'linewidth', 2.5)
         legend('Solution', 'Exact')
         title(['Scattered wave obstacle ', num2str(i), ' - wave height on artificial boundary'])
+        
+        % Error computation
+        U = zeros(size(mesh{i}.X, 1), 1);
+        U0 = zeros(size(mesh{i}.X, 1), 1);
+        auxones = ones(size(mesh{i}.X, 1), 1);
+        Mext = berkhoffDampingMatrix(...
+                mesh{i}.X,...
+                mesh{i}.Tb_ext,...
+                mesh{i}.refelem,...
+                auxones,...
+                auxones);
+        U(nodes_ext(opos{i})) = u;
+        U0(nodes_ext(opos{i})) = u_exact{i};
+        e = U - U0;
+        err(i) = sqrt(real((e' * Mext * e) / (U0' * Mext * U0)));
+    end
+    
+    % Save convergece data
+    if data.setup.save
+        save(['multiscat_errors_n', num2str(nobj), '_k', num2str(data.problem.wavenumber), '_P', ...
+             num2str(data.setup.deg(1)), '_', num2str(data.setup.ppw(1)), 'ppw.mat'], 'data', 'err')
     end
 
 end
@@ -174,25 +218,29 @@ end
 
 %% SOLUTION PLOTS
 
-fig1 = figure; hold on
-fig2 = figure; hold on
-fig3 = figure; hold on
-fig4 = figure; hold on
-for iplot = 1:nobj
-    X = mesh{iplot}.X + data.mesh.center(iplot,:);
-    figure(fig1.Number)
-    plotSolution(X, mesh{iplot}.T, real(solution(iplot).u), mesh{iplot}.refelem);
-    figure(fig2.Number)
-    plotSolution(X, mesh{iplot}.T, abs(solution(iplot).u), mesh{iplot}.refelem);
-    figure(fig3.Number)
-    plotSolution(X, mesh{iplot}.T, real(solution(iplot).u + sol_incident{iplot}), mesh{iplot}.refelem);
-    figure(fig4.Number)
-    plotSolution(X, mesh{iplot}.T, abs(solution(iplot).u + sol_incident{iplot}), mesh{iplot}.refelem);
+if data.setup.doPlots
+    
+    fig1 = figure; hold on
+    fig2 = figure; hold on
+    fig3 = figure; hold on
+    fig4 = figure; hold on
+    for iplot = 1:nobj
+        X = mesh{iplot}.X + data.mesh.center(iplot,:);
+        figure(fig1.Number)
+        plotSolution(X, mesh{iplot}.T, real(solution(iplot).u), mesh{iplot}.refelem);
+        figure(fig2.Number)
+        plotSolution(X, mesh{iplot}.T, abs(solution(iplot).u), mesh{iplot}.refelem);
+        figure(fig3.Number)
+        plotSolution(X, mesh{iplot}.T, real(solution(iplot).u + sol_incident{iplot}), mesh{iplot}.refelem);
+        figure(fig4.Number)
+        plotSolution(X, mesh{iplot}.T, abs(solution(iplot).u + sol_incident{iplot}), mesh{iplot}.refelem);
+    end
+    figure(fig1.Number), title('Scattered wave - Real part'), box on
+    figure(fig2.Number), title('Scattered wave - Wave height'), box on
+    figure(fig3.Number), title('Total wave - Real part'), box on
+    figure(fig4.Number), title('Total wave - Wave height'), box on
+    
 end
-figure(fig1.Number), title('Scattered wave - Real part'), box on
-figure(fig2.Number), title('Scattered wave - Wave height'), box on
-figure(fig3.Number), title('Total wave - Real part'), box on
-figure(fig4.Number), title('Total wave - Wave height'), box on
 
 
 
