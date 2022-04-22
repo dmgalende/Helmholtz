@@ -4,14 +4,14 @@ home
 
 % Load error files
 files = {
-    %'Farfield_expansions/data/centered_R2/line_objects_dx1/multiscat_errors_n3_k6.2832_P4_10ppw.mat'
-    %'Farfield_expansions/data/centered_R2/line_objects_dx1/multiscat_errors_n3_k6.2832_P4_20ppw.mat'
-    %'Farfield_expansions/data/centered_R2/line_objects_dx1/multiscat_errors_n3_k6.2832_P4_40ppw.mat'
-    %'Farfield_expansions/data/centered_R2/line_objects_dx1/multiscat_errors_n3_k6.2832_P4_80ppw.mat'
-    'multiscat_errors_n3_k6.2832_P2_10ppw.mat'
-    'multiscat_errors_n3_k6.2832_P2_20ppw.mat'
-    'multiscat_errors_n3_k6.2832_P2_40ppw.mat'
-    'multiscat_errors_n3_k6.2832_P2_80ppw.mat'
+    'Farfield_expansions/data/centered_R2/line_objects_dx1/multiscat_errors_n3_k6.2832_P4_10ppw.mat'
+    'Farfield_expansions/data/centered_R2/line_objects_dx1/multiscat_errors_n3_k6.2832_P4_20ppw.mat'
+    'Farfield_expansions/data/centered_R2/line_objects_dx1/multiscat_errors_n3_k6.2832_P4_40ppw.mat'
+    'Farfield_expansions/data/centered_R2/line_objects_dx1/multiscat_errors_n3_k6.2832_P4_80ppw.mat'
+    %'multiscat_errors_n3_k6.2832_P2_10ppw.mat'
+    %'multiscat_errors_n3_k6.2832_P2_20ppw.mat'
+    %'multiscat_errors_n3_k6.2832_P2_40ppw.mat'
+    %'multiscat_errors_n3_k6.2832_P2_80ppw.mat'
     };
 
 % Object index
@@ -38,9 +38,9 @@ ylabel('L2 error')
 grid on
 box on
 
-
+% Compute and plot order of convergence
 for i = 1:npoints-1
-    m = log(e(i+1)/e(i)) / log(h(i+1)/h(i));
+    m = log10(e(i+1)/e(i)) / log10(h(i+1)/h(i));
     xm = h(i);
     ym = e(i);
     text(xm, ym, num2str(round(m, 2)), 'FontSize', 15)
