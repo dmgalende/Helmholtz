@@ -1,6 +1,6 @@
-function [u, f, solverdata] = solve_KDFEL(mesh, system, uinc, data, dflag, ddata)
+function [u, f, solverdata] = solve_KDFEL(mesh, system, uinc, data, ddata)
 
-if (nargin > 4) && dflag
+if (nargin == 5) && ~isempty(ddata)
     [u, f] = solve_KDFEL_withDecomposition(mesh, uinc, data, ddata);
     solverdata = ddata;
 else

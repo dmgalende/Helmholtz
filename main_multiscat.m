@@ -7,9 +7,9 @@ setpath_FE()
 
 % Obstacle mesh files
 data.mesh.files = {
-    'Farfield_expansions/data/centered_R2/meshes/R2_2pi_P2_40ppw.dcm'
-    'Farfield_expansions/data/centered_R2/meshes/R2_2pi_P2_40ppw.dcm'
-    'Farfield_expansions/data/centered_R2/meshes/R2_2pi_P2_40ppw.dcm'
+    'Farfield_expansions/data/centered_R2/meshes/R2_2pi_P2_20ppw.dcm'
+    'Farfield_expansions/data/centered_R2/meshes/R2_2pi_P2_20ppw.dcm'
+    'Farfield_expansions/data/centered_R2/meshes/R2_2pi_P4_10ppw.dcm'
     %'Farfield_expansions/data/centered_R2/meshes/R2_2pi_P2_40ppw.dcm'
     %'Farfield_expansions/data/centered_R2/meshes/R2_2pi_P2_40ppw.dcm'
     %'Farfield_expansions/data/centered_R2/meshes/R2_2pi_P2_40ppw.dcm'
@@ -17,7 +17,7 @@ data.mesh.files = {
 nobj = length(data.mesh.files);
 
 % Global coordinate center of each domain
-dx = 0.5;
+dx = 1;
 rad = 2 * ones(nobj, 1);
 data.mesh.center = zeros(nobj, 2);
 for i = 2:nobj
@@ -25,16 +25,17 @@ for i = 2:nobj
 end
 % data.mesh.center = [-2.5 1; 2.5 1; -8 -4; -4 -5; 0 -6; 4 -5; 8 -4];
 
-% Setup
-data.setup.doPlots = false;
+% General setup
+data.setup.doPlots = true;
 data.setup.save = false;
 data.setup.deg = zeros(nobj, 1);
 data.setup.ppw = zeros(nobj, 1);
+data.setup.algo = 'gs'; % Jacobi or gs
 
 % Problem setup
 data.problem.wavenumber = 2 * pi;
 data.problem.max_iter = 30;
-data.problem.inc_angle = 270 * pi/180;
+data.problem.inc_angle = 0 * pi/180;
 data.problem.max_error = 1e-12;
 
 % Farfield expansions setup
@@ -50,7 +51,7 @@ analytical.acoustic_hard = 0;
 for i = 1:nobj
     ppw_idx0 = strfind(data.mesh.files{i}, 'ppw');
     ppw_idx1 = strfind(data.mesh.files{i}, '_');
-    data.setup.ppw (i) = str2double(data.mesh.files{i}(ppw_idx1(end)+1:ppw_idx0-1));
+    data.setup.ppw(i) = str2double(data.mesh.files{i}(ppw_idx1(end)+1:ppw_idx0-1));
 end
 
 
@@ -77,11 +78,11 @@ system = struct('K', K, 'M', M, 'H', H, 'B', B, 'Mabc', Mabc, 'Kabc', Kabc);
 sol_interior = cell(nobj, 1);
 sol_farfield = cell(nobj, 1);
 sol_incident = cell(nobj, 1);
-wavenumber_vector = [cos(data.problem.inc_angle); sin(data.problem.inc_angle)];
+wavenumber_vector = data.problem.wavenumber * [cos(data.problem.inc_angle); sin(data.problem.inc_angle)];
 for i = 1:nobj
     sol_interior{i} = zeros(size(mesh{i}.X, 1), 1);
     sol_farfield{i} = zeros(size(mesh{i}.X_ext, 1), 2*data.farfield.nterms);
-    sol_incident{i} = exp(1i * data.problem.wavenumber * mesh{i}.X * wavenumber_vector);
+    sol_incident{i} = exp(1i * mesh{i}.X * wavenumber_vector);
 end
 solution = struct('u', sol_interior, 'f', sol_farfield);
 solution_prev = solution;
@@ -90,8 +91,7 @@ convergence = false;
 err = zeros(nobj, 1);
 indicator = zeros(data.problem.max_iter, 1);
 ddata = cell(nobj, 1);
-ddata(:) = {struct()};
-dflag = false(nobj, 1);
+ddata(:) = {[]};
 
 % Iteration loop
 while ~convergence && (niter < data.problem.max_iter)
@@ -110,19 +110,17 @@ while ~convergence && (niter < data.problem.max_iter)
         end
         
         % Solve problem with KDFE boundary conditions
-        [solution(i).u, solution(i).f, ddata{i}] = solve_KDFEL(mesh{i}, system(i), uinc, data, dflag(i), ...
-                                                               ddata{i});
-        
-        % Use matrix decomposition to speed up after the first iteration
-        dflag(i) = true;
+        [solution(i).u, solution(i).f, ddata{i}] = solve_KDFEL(mesh{i}, system(i), uinc, data, ddata{i});
         
         % Error on the obstacle wrt the previous solution
         u = solution(i).u(nodes_int);
         u_prev = solution_prev(i).u(nodes_int);
         err(i) = norm(u - u_prev) / norm(u);
         
-        % Gauss-Seidel update (disable Jacobi update)
-        solution_prev(i) = solution(i);
+        % Gauss-Seidel update
+        if strcmpi(data.setup.algo, 'gs')
+            solution_prev(i) = solution(i);
+        end
         
     end
     
@@ -134,8 +132,10 @@ while ~convergence && (niter < data.problem.max_iter)
     % Iter update
     niter = niter + 1;
     
-    % Jacobi update (disable Gauss-Seidel update)
-    % solution_prev = solution;
+    % Jacobi update
+    if strcmpi(data.setup.algo, 'jacobi')
+        solution_prev = solution;
+    end
 
 end
 
@@ -205,6 +205,7 @@ if analytical.compute
         U0(nodes_ext(opos{i})) = u_exact{i};
         e = U - U0;
         err(i) = sqrt(real((e' * Mext * e) / (U0' * Mext * U0)));
+        %err(i) = norm(e) / norm(U0); % alternative way with discrete L2 norm
     end
     
     % Save convergece data

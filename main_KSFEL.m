@@ -6,10 +6,10 @@ setpath_FE()
 %% INPUT DATA
 
 % Mesh
-filemesh = 'Farfield_expansions/data/centered_R2/meshes/mesh7_P4_80ppw.dcm';
+filemesh = 'Farfield_expansions/data/centered_R2/meshes/R2_2pi_P2_20ppw.dcm';
 
 % Savefile
-savefile = 'KSFE_neum_R2_2pi_P4_80ppw_2.mat';
+savefile = 'kk2.mat';
 
 % Geometry
 rad_int = 1;
@@ -21,11 +21,11 @@ wavenumber = 2*pi;  %only affects if nwaves = -1
 inc_angle = 0;
 
 % Boundary condition
-bc_type           = 1; %0: soft scattering (Dirichlet BC), 1: partial reflection (Neumann/Robin BC)
+bc_type           = 0; %0: soft scattering (Dirichlet BC), 1: partial reflection (Neumann/Robin BC)
 bc_reflectionCoef = 0; %only affects if bc_type = 1
 
 % Order of single Karp's single farfield expansion BC
-nL = 1:15;
+nL = 15;
 
 % Which order of family of solutions are going to be depicted
 order_to_plot = nL(end);
@@ -284,8 +284,9 @@ end
 
 %% SOLUTION PLOTS
 
-u = u_all(:, order_to_plot);
-f = f_all{order_to_plot};
+pos_to_plot = find(nL == order_to_plot);
+u = u_all(:, pos_to_plot);
+f = f_all{pos_to_plot};
 
 disp(['Plotting solution computed with order ', num2str(order_to_plot) , '...'])
 figure, plotSolution(mesh.X, mesh.T, real(u), mesh.refelem); title('Scattered wave - Real part');

@@ -6,10 +6,10 @@ setpath_FE()
 %% INPUT DATA
 
 % Mesh
-filemesh = 'mesh7_PML_pid2_P3_10ppw.dcm'; %'Farfield_expansions/data/centered_R2/meshes/mesh7_P4_10ppw.dcm';
+filemesh = 'Farfield_expansions/data/centered_R2/meshes/R2_2pi_P2_20ppw.dcm';
 
 % Savefile
-savefile = 'KDFE_neum_R2_pid2_P3_10ppw.mat';
+savefile = 'kk.mat';
 
 % Geometry
 rad_int = 1;
@@ -17,15 +17,15 @@ rad_ext = 2;
 
 % Problem
 nwaves = -1;  %define number of waves in the domain, set -1 to use wavenumber value instead
-wavenumber = pi/2;  %only affects if nwaves = -1
+wavenumber = 2*pi;  %only affects if nwaves = -1
 inc_angle = 0;
 
 % Boundary condition
-bc_type           = 1; %0: soft scattering (Dirichlet BC), 1: partial reflection (Neumann/Robin BC)
+bc_type           = 0; %0: soft scattering (Dirichlet BC), 1: partial reflection (Neumann/Robin BC)
 bc_reflectionCoef = 0; %only affects if bc_type = 1
 
 % Order of double Karp's single farfield expansion BC
-nL = 15;
+nL = 1:15;
 
 % Which order of family of solutions are going to be depicted
 order_to_plot = nL(end);

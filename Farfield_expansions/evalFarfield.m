@@ -36,18 +36,16 @@ f_otheta = interpolateSolution1D(f_ext, X_ext, T_ext, mesh.refelem, otheta);
 
 % Evaluate farfield
 kr = k * orho;
+inv_kr = 1 ./ kr;
 H0 = besselh(0, kr);
 H1 = besselh(1, kr);
 ou = zeros(size(x,1), 1);
 coef = 0;
 for i = 1:2:size(f,2)
-    ou = ou + (1 ./ kr.^coef) .* (H0 .* f_otheta(:,i) + H1 .* f_otheta(:,i+1));
+    ou = ou + inv_kr.^coef .* (H0 .* f_otheta(:,i) + H1 .* f_otheta(:,i+1));
     coef = coef + 1;
 end
 
 % Backward map to original order
 u = zeros(size(x,1), 1);
 u(opos) = ou;
-
-
-
